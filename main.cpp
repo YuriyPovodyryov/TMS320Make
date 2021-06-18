@@ -7,8 +7,11 @@
 #include <algorithm>
 #include <stdint.h>
 
+#include <shellapi.h>
+#include <stdlib.h>
+
 //------------------------------------------------------------------------------
-bool Processing(void);//запустить на выполнение
+bool Processing(const uint32_t &Address, const uint32_t &Length);//запустить на выполнение
 void ProcessingFile(const std::string &path,const std::string &mask,std::vector<std::string> &file_array);//обработка
 void FindFile(const std::string &path,const std::string &mask,std::vector<std::string> &file_array);//обработка файлов
 void FindPath(const std::string &path,const std::string &mask,std::vector<std::string> &file_array);//обработка каталогов
@@ -18,25 +21,71 @@ bool ProcessingIFFiles(const std::string &path,const std::string &opt30_file_nam
 bool ProcessingOPTFiles(const std::string &path,const std::string &cg30_file_name);//обработка opt-файлов
 bool ProcessingASMFiles(const std::string &path,const std::string &asm30_file_name);//обработка asm-файлов
 bool ProcessingOBJFiles(const std::string &path,const std::string &lnk30_file_name,const std::string &libs_file_name);//обработка obj-файлов
-bool ProcessingOUTFiles(const std::string &path);//обработка out-файлов
+bool ProcessingOUTFiles(const std::string &path, const uint32_t &address, const uint32_t &length);//обработка out-файлов
+bool isHex(const std::string &str); /*  Проверка - является ли строка шестнадцатиричным числом?  */
+
 
 //----------------------------------------------------------------------------------------------------
 //главная функция программы
 //----------------------------------------------------------------------------------------------------
 int WINAPI WinMain(HINSTANCE hInstance,HINSTANCE hPrevstance,LPSTR lpstrCmdLine,int nCmdShow)
 {
- if (Processing()==false)
+ LPWSTR *argv;
+ int argc;
+ argv=CommandLineToArgvW(GetCommandLineW(),&argc);
+
+ uint32_t address = 0x2000;
+ uint32_t length  = 0x4000;
+
+ printf("\r\nUsage: TMS320Make.exe --adress 0x2000 --length 0x4000\r\n");
+
+ if (argc > 2) 
  {
-  fprintf(stderr," \r\nStop compilation.\r\n \r\n");
-  exit(EXIT_FAILURE);
- }
- exit(EXIT_SUCCESS);
+   /* Должно быть как минимум два argv[] (имя и hex-значение), типа
+   --adsress 0x2000 и/или
+   --length 0x4000
+   Если что-то не так, то используются дефолтные значения.
+   Может надо сделать без "0x"???
+   */
+   for (int i=1;i<argc-1;i++) 
+   {
+    char *p;
+    if (!strcmp((char*)argv[i],(char*)L"--address") && (isHex((char*)argv[i + 1]))) 
+	{
+     address=strtol((char*)argv[i+1],&p,16);
+    }
+	if (!strcmp((char*)argv[i],(char*)L"--length") && (isHex((char*)argv[i + 1]))) 
+	{
+     length=strtol((char*)argv[i + 1],&p,16);
+    }
+   }
+  }
+
+	
+
+    if (Processing(address, length) == false) {
+        fprintf(stderr," \r\nStop compilation.\r\n \r\n");
+        exit(EXIT_FAILURE);
+    }
+    exit(EXIT_SUCCESS);
 }
+
+/*
+ * Проверка - является ли строка шестнадцатиричным числом?
+*/
+bool isHex(const std::string &str)
+{
+   if (str.empty() || ((!isdigit(str[0])) && (str[0] != '-') && (str[0] != '+'))) return false;
+   char *p;
+   strtol(str.c_str(), &p, 16);
+   return (*p == 0);
+}
+
 
 //----------------------------------------------------------------------------------------------------
 //запустить на выполнение
 //----------------------------------------------------------------------------------------------------
-bool Processing(void)
+bool Processing(const uint32_t &address, const uint32_t &length)
 {
  //узнаем текущий каталог
  char path[MAX_PATH];
@@ -75,7 +124,7 @@ bool Processing(void)
  if (ProcessingASMFiles(path,asm30_file_name)==false) return(false);
  if (ProcessingOBJFiles(path,lnk30_file_name,libs_file_name)==false) return(false);
 
- if (ProcessingOUTFiles(path)==false) return(false);
+ if (ProcessingOUTFiles(path, address, length)==false) return(false);
  return(true);
 }
 
@@ -342,7 +391,7 @@ bool ProcessingOBJFiles(const std::string &path,const std::string &lnk30_file_na
 //----------------------------------------------------------------------------------------------------
 //обработка out-файлов
 //----------------------------------------------------------------------------------------------------
-bool ProcessingOUTFiles(const std::string &path)
+bool ProcessingOUTFiles(const std::string &path, const uint32_t &address, const uint32_t &length)
 {
  printf("Create dat-file.\r\n");
  std::vector<uint8_t> out_file_data;
@@ -464,6 +513,25 @@ bool ProcessingOUTFiles(const std::string &path)
  uint32_t date_value=string_convert(date);
  uint32_t time_value=string_convert(time);
 
+
+ printf("________$________\r\n");
+ printf("_______$_$_______\r\n");
+ printf("______$___$______\r\n");
+ printf("_____$_____$_____\r\n");
+ printf("____$_______$____\r\n");
+ printf("____$_______$____\r\n");
+ printf("____$_______$____\r\n");
+ printf("____$_______$____\r\n");
+ printf("____$_______$____\r\n");
+ printf("____$_______$____\r\n");
+ printf("____$_______$____\r\n");
+ printf("___$__$___$__$___\r\n");
+ printf("__$__$_$_$_$__$__\r\n");
+ printf("_$__$__$$$__$__$_\r\n");
+ printf("_$$$____$____$$$_\r\n");
+ printf("_$______$______$_\r\n");
+ printf("$_______$_______$\r\n");
+
  printf("Date:%s (0x%08x)\r\n",date,date_value);
  printf("Time:%s (0x%08x)\r\n",time,time_value);
  
@@ -510,7 +578,7 @@ bool ProcessingOUTFiles(const std::string &path)
   return(false);
  }
  
- fprintf(file_crc_dat,"1651 1 1000 0 4000\r\n");
+ fprintf(file_crc_dat,"1651 1 %x 0 %x\r\n", address, length);
  fprintf(file_dat,"1651 1 0 0 3fff\r\n");
  uint32_t crc=0;
  size_t size=dat_file_data.size();
@@ -528,6 +596,7 @@ bool ProcessingOUTFiles(const std::string &path)
   word<<=8;word+=b0;
 
   crc+=word;
+
 
   fprintf(file_crc_dat,"0x%08x\r\n",word);
   fprintf(file_dat,"0x%08x\r\n",word);
